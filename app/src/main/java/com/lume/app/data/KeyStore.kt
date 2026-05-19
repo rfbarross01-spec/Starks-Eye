@@ -5,11 +5,6 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
-/**
- * Armazenamento seguro das chaves de API.
- * Usa EncryptedSharedPreferences (encriptado pelo Android Keystore).
- * Nada disso vaza pra disco em texto plano.
- */
 class KeyStore(context: Context) {
 
     private val prefs: SharedPreferences by lazy {
@@ -26,33 +21,23 @@ class KeyStore(context: Context) {
         )
     }
 
-    fun setGeminiKey(key: String) {
-        prefs.edit().putString(KEY_GEMINI, key.trim()).apply()
-    }
+    fun setGeminiKey(key: String) = prefs.edit().putString(KEY_GEMINI, key.trim()).apply()
+    fun getGeminiKey(): String? = prefs.getString(KEY_GEMINI, null)?.takeIf { it.isNotBlank() }
 
-    fun getGeminiKey(): String? {
-        return prefs.getString(KEY_GEMINI, null)?.takeIf { it.isNotBlank() }
-    }
+    fun setAnthropicKey(key: String) = prefs.edit().putString(KEY_ANTHROPIC, key.trim()).apply()
+    fun getAnthropicKey(): String? = prefs.getString(KEY_ANTHROPIC, null)?.takeIf { it.isNotBlank() }
 
-    fun setAnthropicKey(key: String) {
-        prefs.edit().putString(KEY_ANTHROPIC, key.trim()).apply()
-    }
+    fun setKimiKey(key: String) = prefs.edit().putString(KEY_KIMI, key.trim()).apply()
+    fun getKimiKey(): String? = prefs.getString(KEY_KIMI, null)?.takeIf { it.isNotBlank() }
 
-    fun getAnthropicKey(): String? {
-        return prefs.getString(KEY_ANTHROPIC, null)?.takeIf { it.isNotBlank() }
-    }
+    fun hasMinimumKeys(): Boolean = getGeminiKey() != null && getAnthropicKey() != null
 
-    fun hasBothKeys(): Boolean {
-        return getGeminiKey() != null && getAnthropicKey() != null
-    }
-
-    fun clearAll() {
-        prefs.edit().clear().apply()
-    }
+    fun clearAll() = prefs.edit().clear().apply()
 
     companion object {
         private const val PREFS_NAME = "lume_secure_prefs"
         private const val KEY_GEMINI = "gemini_api_key"
         private const val KEY_ANTHROPIC = "anthropic_api_key"
+        private const val KEY_KIMI = "kimi_api_key"
     }
 }

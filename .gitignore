@@ -1,0 +1,34 @@
+# Built artifacts
+*.apk
+*.aar
+*.jar
+*.dex
+*.so
+*.class
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keys (NUNCA commitar)
+**/google-services.json
+keystore.properties
+*.keystore
+*.jks

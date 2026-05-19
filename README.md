@@ -1,163 +1,155 @@
-# Lume
+# Lume V2 — Companheiro de tela editorial
 
-> Companheiro de tela inteligente. Antídoto contra rolagem inconsciente.
+App Android Kotlin/Compose que põe uma bolha flutuante sobre qualquer app. Toque pra capturar screenshot, ML Kit faz triagem on-device, Gemini Flash identifica, Claude Sonnet 4.5 (ou Kimi K2.6) faz análise editorial profunda ou veredito anti-hype com 5 frameworks.
 
-App Android pessoal que captura screenshots e analisa com IA (Gemini + Claude), oferecendo contexto, profundidade e vereditos honestos sobre o que você consome.
+**Anti-doomscroll por design**: o Lume te interrompe pra te dar densidade. Não pra te dar dopamina.
 
-## Estado atual da V1.0
+## O que mudou da V1 pra V2
 
-Esta é a **primeira iteração funcional** com pipeline de build validado. Não é o app completo ainda — é o esqueleto que compila, instala e roda. Funcionalidades entregues:
+**V1 era o esqueleto**: APK compilando, chaves criptografadas, chamadas HTTP reais a Gemini/Anthropic funcionando, mas sem bolha, sem captura, sem análise real.
 
-- ✅ Tela de onboarding pedindo chaves de API
-- ✅ Teste real das chaves (chamadas reais a Gemini e Anthropic, sem mock)
-- ✅ Armazenamento criptografado (EncryptedSharedPreferences) das chaves
-- ✅ Sistema de design editorial Lume (paleta, tipografia)
-- ✅ Foreground service estruturado para overlay
-- ✅ Tela home + tela de configurações funcionais
-- ✅ Pipeline GitHub Actions que gera APK automaticamente
+**V2 é o app**: tudo da V1 + bolha flutuante draggable + MediaProjection + pipeline editorial em camadas + Modo Veredito com 5 frameworks + 3 providers IA selecionáveis + prompts editáveis (no app ou direto no Obsidian) + exportação Obsidian individual + zip da sessão pronto pra meta-análise no Opus 4.7.
 
-Próximas iterações vão adicionar (nessa ordem):
-- ⏳ Bolha flutuante real sobre outros apps (WindowManager)
-- ⏳ Captura de tela via MediaProjection
-- ⏳ Camada 1 com Gemini (identificação rápida)
-- ⏳ Camada 2 com Claude + web search (análise profunda)
-- ⏳ Modo Veredito (GO/NO-GO para conteúdo tech)
-- ⏳ Exportação Obsidian (.md com frontmatter)
-- ⏳ Histórico (Room database)
-- ⏳ Memória semântica + vault-awareness
-
-## Como instalar no seu celular — 4 passos
-
-### Passo 1: Criar repositório no GitHub e enviar este código
-
-1. Crie uma conta no GitHub se ainda não tem (github.com — grátis)
-2. Crie um repositório novo (botão `+` no topo direito → "New repository")
-3. Dê um nome qualquer, ex: `lume`
-4. Deixe como **Public** (necessário pra Actions gratuito) ou **Private** (precisa de Actions plan)
-5. NÃO marque "Add a README" — vamos subir o próprio
-6. Clique "Create repository"
-
-Depois, no seu computador (ou direto pela interface do GitHub fazendo upload de arquivos):
-
-```bash
-cd lume-android
-git init
-git add .
-git commit -m "primeira versão"
-git branch -M main
-git remote add origin https://github.com/SEU-USUARIO/lume.git
-git push -u origin main
-```
-
-### Passo 2: Esperar o GitHub compilar o APK
-
-1. Vá pra aba **"Actions"** do seu repositório
-2. Você vai ver um workflow chamado "Build Android APK" rodando
-3. Aguarde uns **5 a 10 minutos** (a primeira vez demora mais por causa do cache)
-4. Quando aparecer um ✓ verde, clique no workflow
-5. Role pra baixo até a seção **"Artifacts"**
-6. Clique em **"lume-debug-apk"** pra baixar o arquivo `.zip`
-7. Descompacte → você tem `app-debug.apk`
-
-**Se der erro:** abra o workflow que falhou, role até encontrar a linha vermelha, e me mande o trecho do log com o erro. Eu corrijo.
-
-### Passo 3: Instalar no celular
-
-1. Transfira o arquivo `app-debug.apk` pro celular (Google Drive, cabo USB, Telegram pra você mesmo, etc.)
-2. No celular, abra o gerenciador de arquivos e toque no APK
-3. Na primeira vez o Android vai pedir permissão pra "Instalar apps desconhecidos" — autorize o app que vai abrir o APK (Files, Drive, etc.)
-4. Confirme a instalação
-5. Abra o app "Lume" do launcher
-
-### Passo 4: Configurar as chaves de API
-
-Na primeira abertura, o app pede 2 chaves:
-
-**Chave Google Gemini** (grátis, gera em 30 segundos):
-- Acesse https://aistudio.google.com/apikey
-- Faça login com sua conta Google
-- Clique "Create API key" → "Create API key in new project"
-- Copie a chave (começa com `AIzaSy...`)
-- Cole no campo do Lume
-
-**Chave Anthropic** (precisa de cartão, mas tem créditos free pra testar):
-- Acesse https://console.anthropic.com
-- Crie conta (precisa adicionar método de pagamento, mas Anthropic dá $5 grátis pra começar)
-- Vá em **Settings → API Keys**
-- Clique "Create Key"
-- Copie (começa com `sk-ant-...`)
-- Cole no campo do Lume
-
-Toque em **"TESTAR CHAVES E ATIVAR"**. O app faz uma chamada real a cada API pra confirmar que funciona. Se ambas estão ✓ verde, você está pronto.
-
-## Custos esperados
-
-Sem uso: $0/mês (chaves não custam nada paradas).
-
-Com uso (estimativa pra próximas iterações quando análise estiver implementada):
-- Gemini Flash: ~$0.001 a $0.003 por análise rápida
-- Claude + web search: ~$0.05 a $0.30 por análise profunda
-
-Para uso pessoal moderado (10-30 análises/dia): $10-50/mês total. Você controla — pode desativar a bolha quando quiser parar de gastar.
-
-## Atestado de honestidade
-
-Cada item abaixo é um compromisso técnico verificável:
-
-- [x] As chaves de API são pedidas ao usuário na primeira abertura
-- [x] As chaves ficam salvas em EncryptedSharedPreferences (AES256-GCM via Android Keystore)
-- [x] O teste de chaves faz chamadas HTTP REAIS a Gemini e Anthropic (sem mock, sem fake)
-- [x] O APK compila via GitHub Actions sem intervenção manual
-- [ ] A bolha flutuante aparece sobre outros apps (iteração V2)
-- [ ] A captura de tela funciona via MediaProjection (iteração V2)
-- [ ] As funções analyzeLayer1, analyzeLayer2 fazem chamadas reais às APIs (iteração V3)
-
-Você pode confirmar olhando os arquivos:
-- `app/src/main/java/com/lume/app/data/KeyStore.kt` — armazenamento criptografado
-- `app/src/main/java/com/lume/app/ai/ApiTester.kt` — chamadas HTTP reais (procure por `httpClient.post`)
-
-## Estrutura do projeto
+## Arquitetura cognitiva
 
 ```
-lume-android/
-├── app/
-│   ├── build.gradle.kts          # Dependências (Compose, Ktor, ML Kit)
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/lume/app/
-│       │   ├── MainActivity.kt
-│       │   ├── LumeApplication.kt
-│       │   ├── data/             # KeyStore, AppSettings
-│       │   ├── ai/               # Clients de API (Gemini, Anthropic)
-│       │   ├── service/          # OverlayService (stub V1)
-│       │   ├── ui/
-│       │   │   ├── theme/        # Cores, tipografia
-│       │   │   ├── onboarding/   # Tela de chaves
-│       │   │   ├── home/         # Tela principal
-│       │   │   └── settings/     # Configurações
-│       │   └── triage/           # ML Kit on-device (iteração V2)
-│       └── res/                  # Recursos Android
-├── .github/workflows/
-│   └── build.yml                 # CI que gera APK
-├── settings.gradle.kts
-├── build.gradle.kts
-└── gradle.properties
+┌──────────────────────────────────────────────────────────────┐
+│  Camada 0 — TRIAGEM ON-DEVICE (ML Kit, gratuito, instantâneo)│
+│  • OCR (TextRecognition) extrai texto                        │
+│  • Image Labeling extrai objetos                             │
+│  • Detecta conteúdo sensível (senhas, CPF, etc.) e cancela   │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────────┐
+│  Camada 1 — IDENTIFICAÇÃO (Gemini 2.5 Flash, ~2s, ~$0.001)   │
+│  • Tipo de conteúdo + título evocativo                       │
+│  • Observação aguda (1-3 frases)                             │
+│  • Decisão: vale aprofundar? é tech/hype?                    │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+        ┌─────────────────┴──────────────────┐
+        ↓                                    ↓
+┌─────────────────┐              ┌──────────────────────┐
+│  Camada 2       │              │  Modo Veredito       │
+│  Análise        │              │  Análise crítica     │
+│  editorial      │              │  anti-hype           │
+│                 │              │                      │
+│  Sontag×        │              │  McKenzie×Horowitz×  │
+│  Borges×DFW×    │              │  Taleb×Cowen×Hobart  │
+│  Calvino        │              │                      │
+│                 │              │  5 frameworks:       │
+│  • O que é      │              │  • Gartner Hype Cycle│
+│  • Contexto     │              │  • Wardley Mapping   │
+│  • Camadas      │              │  • Crossing the Chasm│
+│  • Tensões      │              │  • Lindy Effect      │
+│  • Para refletir│              │  • Infra vs Wrapper  │
+│  • Conexões     │              │                      │
+│  • Para ir além │              │  GO / NO_GO / WATCH /│
+│  • Flashcards   │              │  OBSOLETO / DEPENDE  │
+│  • Tags Obsidian│              │                      │
+└─────────────────┘              └──────────────────────┘
+
+Provider selecionável nas configurações:
+  • Claude Sonnet 4.5 (default) — web_search nativo, vision
+  • Kimi K2.6 — $web_search builtin tool, alternativa mais barata
 ```
 
-## Problemas comuns
+## Como construir o APK
 
-**"O app não abre / dá crash"**
-Abra "Apps recentes" no celular, force a parada do Lume, e abra de novo. Se persistir, me mande o resultado de `adb logcat` ou abra o app pelo Android Studio pra ver o erro.
+### Opção A — GitHub Actions (recomendada)
 
-**"GitHub Actions falhou na primeira vez"**
-Normal — às vezes o setup do cache demora. Vá no workflow falho e clique "Re-run all jobs". Se falhar 2 vezes seguidas, me mande o erro.
+1. Substitua os arquivos do seu repo `rfbarross01-spec/Starks-Eye` por estes
+2. Faça push pra branch `main`
+3. GitHub Actions roda automaticamente (já tem workflow `.github/workflows/build.yml`)
+4. Quando completar (5-8 min), baixe o APK em **Actions → último run → Artifacts → lume-debug-apk**
 
-**"Já tenho conta Anthropic mas não funciona"**
-Verifique se você tem créditos disponíveis em console.anthropic.com → Billing. Conta nova sem cartão tem $5 grátis mas precisa ativar.
+### Opção B — Android Studio local
 
-**"Quero compilar local em vez de no GitHub"**
-Precisa de Android Studio (download em developer.android.com/studio). Abra a pasta do projeto, espere Gradle sync, e clique em Run. Mas o GitHub Actions é mais simples — recomendo manter esse fluxo.
+1. Abra o projeto no Android Studio Narwhal+
+2. Espere o sync (pode demorar 5 min na 1ª vez)
+3. `Build → Build Bundle(s) / APK(s) → Build APK(s)`
+4. Ou conecte celular via USB e `Run → Run 'app'`
 
-## Licença
+## Como configurar no celular
 
-Uso pessoal. Não publicado em loja. Não compartilhado comercialmente.
+1. Instale APK (`adb install` ou abra via WhatsApp/Files)
+2. Abra o Lume, cole 3 chaves no Onboarding:
+   - **Gemini** (obrigatório): https://aistudio.google.com/app/apikey
+   - **Anthropic** (obrigatório): https://console.anthropic.com/settings/keys
+   - **Kimi** (opcional): https://platform.moonshot.ai/console/api-keys
+3. Toque "Salvar e continuar"
+4. Em Configurações:
+   - Escolha o vault Obsidian (SAF picker)
+   - Escolha provider Camada 2 (Sonnet 4.5 ou Kimi K2.6)
+5. Na Home, toque **"Ativar bolha"**:
+   - Sistema pedirá permissão de overlay → confirme
+   - Sistema pedirá permissão de captura de tela → confirme
+6. Bolha aparece sobre qualquer app
+   - **Toque**: captura e analisa em camadas
+   - **Mantenha pressionada (500ms)**: força Modo Veredito
+   - **Arraste**: reposiciona (com snap-to-edge)
+
+## Como editar os prompts (feature crítica V2)
+
+**Pelo app**: Home → "Editar prompts" → escolha aba (Camada 1, Camada 2, Veredito, Meta-Sessão) → edite → "Salvar"
+
+**Pelo Obsidian (mesmo prompt)**: abra a pasta `<seu-vault>/lume-prompts/` → edite `layer1.md`, `layer2.md`, `verdict.md`, `meta_session.md` → a próxima análise usa sua versão
+
+**Resetar pro padrão**: dentro do editor de prompts, botão "Resetar" volta pro default empacotado no APK.
+
+**Placeholder dinâmico**: use `{contexto_adaptativo}` em qualquer lugar do seu prompt — o Lume substitui por um bloco de instruções específicas ao tipo de conteúdo detectado pela Camada 1.
+
+## Exportar sessão pro Opus 4.7
+
+Em Configurações → "Exportar sessão", o Lume empacota TODAS suas análises num zip:
+
+```
+lume-sessao-YYYY-MM-DD_HH-mm.zip
+├── README.md             — instruções
+├── meta-prompt-opus.md   — prompt pronto pra colar no claude.ai
+├── analises/
+│   ├── 001_titulo.md
+│   ├── 002_titulo.md
+│   └── ...
+├── imagens/
+│   ├── 001_titulo.jpg
+│   └── ...
+└── dados.json            — versão estruturada
+```
+
+Suba esse zip no claude.ai (web ou desktop) usando Opus 4.7, cole o conteúdo de `meta-prompt-opus.md` como primeira mensagem. Opus faz meta-análise: cartografia de obsessões, tensões transversais, padrões que o Lume sozinho não enxerga.
+
+## Stack técnica
+
+- Kotlin 2.0.20 + Compose 2024.09 + Material 3
+- Ktor 2.3.12 (HTTP client multiplatform)
+- Room 2.6.1 + KSP (persistência local)
+- ML Kit Text Recognition + Image Labeling (on-device)
+- MediaProjection + ImageReader (captura de tela)
+- DocumentFile + SAF (acesso ao vault Obsidian)
+- EncryptedSharedPreferences (chaves criptografadas)
+- kotlinx.serialization (JSON com tipagem forte)
+- minSdk 29 (Android 10), targetSdk 34 (Android 14)
+
+## Roadmap
+
+**V3** (próxima):
+- Captura de vídeo (frames + áudio) para Reels/TikTok/Stories
+- Long-press na bolha já está estruturado pra isso
+- Áudio via AudioPlaybackCaptureConfiguration (Android 10+)
+- Gemini 2.5 Pro aceita áudio nativo
+- Análise temporal: identifica momentos-chave do vídeo
+
+**V4** (depois de acumular ~100 análises):
+- Aprendizado por feedback (👍/👎/💾) ajusta prompts automaticamente
+- Modo "perfil psicológico do scroll" baseado em padrões
+
+## Notas
+
+- **Privacidade**: imagens com OCR sensível (senhas, cartão de crédito) são detectadas e a captura é cancelada antes de qualquer envio
+- **Custos**: ~$0.001 por captura simples (só Camada 1), ~$0.02 por análise profunda com web_search, ~$0.04 por veredito completo
+- **Latência típica**: Camada 1 ~2s, Camada 2 ~8-15s, Veredito ~15-25s (depende de quantas web searches são feitas)
+
+---
+
+Lume V2 está pronto pra ser usado em produção pessoal.

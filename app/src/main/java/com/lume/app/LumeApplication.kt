@@ -1,34 +1,53 @@
 package com.lume.app
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.os.Build
+import com.lume.app.ai.AnalysisOrchestrator
+import com.lume.app.ai.clients.AnthropicClient
+import com.lume.app.ai.clients.GeminiClient
+import com.lume.app.ai.clients.KimiClient
+import com.lume.app.ai.prompts.PromptStore
+import com.lume.app.data.AppSettings
+import com.lume.app.data.KeyStore
+import com.lume.app.data.database.LumeDatabase
+import com.lume.app.util.ObsidianExporter
+import com.lume.app.util.SessionExporter
+import kotlinx.coroutines.flow.first
 
+/**
+ * Application class — container de dependências (DI manual sem Hilt/Koin).
+ * Acesso via (context.applicationContext as LumeApplication).<thing>
+ */
 class LumeApplication : Application() {
 
-    override fun onCreate() {
-        super.onCreate()
-        createNotificationChannels()
+    val keyStore: KeyStore by lazy { KeyStore(this) }
+    val settings: AppSettings by lazy { AppSettings(this) }
+    val database: LumeDatabase by lazy { LumeDatabase.get(this) }
+
+    val promptStore: PromptStore by lazy {
+        PromptStore(this) { settings.vaultUri.first() }
     }
 
-    private fun createNotificationChannels() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val overlayChannel = NotificationChannel(
-                CHANNEL_OVERLAY,
-                "Lume ativo",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Mantém a bolha do Lume visível sobre outros apps"
-                setShowBadge(false)
-            }
-            nm.createNotificationChannel(overlayChannel)
-        }
+    val geminiClient: GeminiClient by lazy {
+        GeminiClient(keyStore, promptStore)
     }
 
-    companion object {
-        const val CHANNEL_OVERLAY = "lume_overlay_channel"
+    val anthropicClient: AnthropicClient by lazy {
+        AnthropicClient(keyStore, promptStore)
+    }
+
+    val kimiClient: KimiClient by lazy {
+        KimiClient(keyStore, promptStore)
+    }
+
+    val orchestrator: AnalysisOrchestrator by lazy {
+        AnalysisOrchestrator(geminiClient, anthropicClient, kimiClient)
+    }
+
+    val obsidianExporter: ObsidianExporter by lazy {
+        ObsidianExporter(this, settings)
+    }
+
+    val sessionExporter: SessionExporter by lazy {
+        SessionExporter(this, database, promptStore)
     }
 }

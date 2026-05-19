@@ -1,29 +1,93 @@
 package com.lume.app.service
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.lume.app.LumeApplication
 import com.lume.app.MainActivity
+import com.lume.app.R
+import com.lume.app.ai.models.CaptureContext
+import com.lume.app.triage.TriageEngine
+import com.lume.app.ui.result.PendingAnalysisHolder
+import com.lume.app.ui.result.ResultOverlayActivity
+import com.lume.app.util.ImageUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
- * Foreground service que mantém a bolha do Lume sobre outros apps.
+ * Foreground service que mantém a bolha + screen capture vivos.
  *
- * Esta é a versão V1: stub que apenas mantém o foreground service rodando.
- * A bolha real, MediaProjection e captura de tela serão implementadas na iteração V2.
+ * Lifecycle:
+ *   start → mostra bolha (se já tem grant projection, prepara capture)
+ *   se não tem grant → dispara MediaProjectionRequestActivity
+ *   user toca bolha → esconde bolha → captura → triagem → ResultOverlayActivity
  *
- * Comandos suportados via Intent extras:
- * - ACTION_START: inicia o serviço
- * - ACTION_STOP: encerra o serviço
+ * Stop via notificação.
  */
 class LumeOverlayService : Service() {
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    companion object {
+        const val ACTION_START = "com.lume.app.START_OVERLAY"
+        const val ACTION_STOP = "com.lume.app.STOP_OVERLAY"
+
+        private const val CHANNEL_ID = "lume_overlay"
+        private const val NOTIFICATION_ID = 1001
+
+        fun startIntent(context: Context) = Intent(context, LumeOverlayService::class.java)
+            .setAction(ACTION_START)
+
+        fun stopIntent(context: Context) = Intent(context, LumeOverlayService::class.java)
+            .setAction(ACTION_STOP)
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var bubbleManager: BubbleManager? = null
+    private var captureManager: ScreenCaptureManager? = null
+    private val triage = TriageEngine()
+    private var currentCaptureJob: Job? = null
+
+    private val projectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, intent: Intent?) {
+            when (intent?.action) {
+                MediaProjectionRequestActivity.ACTION_GRANTED -> setupCapture()
+                MediaProjectionRequestActivity.ACTION_DENIED -> {
+                    showToast("Permissão de captura negada. Lume não pode operar sem isso.")
+                    stopSelf()
+                }
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        val filter = IntentFilter().apply {
+            addAction(MediaProjectionRequestActivity.ACTION_GRANTED)
+            addAction(MediaProjectionRequestActivity.ACTION_DENIED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(projectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(projectionReceiver, filter)
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -32,44 +96,48 @@ class LumeOverlayService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> {
-                startInForeground()
-                // TODO V2: criar bolha flutuante via WindowManager
-                // TODO V2: inicializar MediaProjection
-                // TODO V2: implementar lógica de captura ao tocar bolha
-            }
+            else -> startInForeground()
         }
+
+        // Verifica grant ou pede
+        if (MediaProjectionHolder.hasGrant()) {
+            setupCapture()
+        } else {
+            requestMediaProjection()
+        }
+
+        bubbleManager?.show() ?: run {
+            bubbleManager = BubbleManager(
+                context = this,
+                onTap = { onBubbleTap(forceVerdict = false) },
+                onLongPress = { onBubbleTap(forceVerdict = true) }
+            ).also { it.show() }
+        }
+
         return START_STICKY
     }
 
     private fun startInForeground() {
-        val openAppIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val stopIntent = stopIntent(this).let { intent ->
+            PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, openAppIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        val openIntent = PendingIntent.getActivity(
+            this, 1,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
         )
 
-        val stopIntent = Intent(this, LumeOverlayService::class.java).apply {
-            action = ACTION_STOP
-        }
-        val stopPendingIntent = PendingIntent.getService(
-            this, 1, stopIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        val notification: Notification = NotificationCompat.Builder(this, LumeApplication.CHANNEL_OVERLAY)
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Lume ativo")
-            .setContentText("Toque na bolha pra capturar a tela atual")
-            .setSmallIcon(android.R.drawable.ic_menu_view)
-            .setContentIntent(pendingIntent)
-            .addAction(0, "Encerrar", stopPendingIntent)
+            .setContentText("Toque na bolha pra capturar e analisar")
+            .setSmallIcon(R.drawable.ic_lume_bubble)
+            .setContentIntent(openIntent)
             .setOngoing(true)
+            .addAction(0, "Pausar", stopIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
@@ -80,14 +148,100 @@ class LumeOverlayService : Service() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        // TODO V2: limpar WindowManager view + MediaProjection
+    private fun requestMediaProjection() {
+        val intent = Intent(this, MediaProjectionRequestActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
     }
 
-    companion object {
-        const val ACTION_START = "com.lume.app.action.START"
-        const val ACTION_STOP = "com.lume.app.action.STOP"
-        private const val NOTIFICATION_ID = 1001
+    private fun setupCapture() {
+        val grant = MediaProjectionHolder.consume() ?: return
+        if (captureManager == null) captureManager = ScreenCaptureManager(this)
+        captureManager?.setup(grant.first, grant.second)
+    }
+
+    private fun onBubbleTap(forceVerdict: Boolean) {
+        if (currentCaptureJob?.isActive == true) return
+
+        currentCaptureJob = scope.launch {
+            try {
+                if (captureManager?.isReady() != true) {
+                    showToast("Preparando captura — toque de novo em 2s")
+                    requestMediaProjection()
+                    return@launch
+                }
+
+                bubbleManager?.hide()
+                delay(200) // dá tempo da bolha sumir do display
+
+                val bitmap: Bitmap? = captureManager?.captureSingle(timeoutMs = 3000)
+
+                bubbleManager?.reveal()
+
+                if (bitmap == null) {
+                    showToast("Não consegui capturar a tela")
+                    return@launch
+                }
+
+                // Triagem on-device
+                val triageResult = triage.triage(bitmap)
+                if (triageResult.isSensitive) {
+                    showToast("Conteúdo sensível detectado — captura cancelada")
+                    bitmap.recycle()
+                    return@launch
+                }
+
+                // Converte bitmap → JPEG bytes (com resize)
+                val jpegBytes = ImageUtils.bitmapToJpegBytes(bitmap, maxDimension = 1568, quality = 85)
+                bitmap.recycle()
+
+                val ctx = CaptureContext(
+                    imageBytes = jpegBytes,
+                    mimeType = "image/jpeg",
+                    ocrText = triageResult.ocrText,
+                    labels = triageResult.labels,
+                    forceVerdict = forceVerdict
+                )
+
+                PendingAnalysisHolder.set(ctx)
+                val intent = Intent(this@LumeOverlayService, ResultOverlayActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                startActivity(intent)
+
+            } catch (e: Exception) {
+                showToast("Erro: ${e.message}")
+                bubbleManager?.reveal()
+            }
+        }
+    }
+
+    private fun showToast(msg: String) {
+        scope.launch(Dispatchers.Main) {
+            android.widget.Toast.makeText(this@LumeOverlayService, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroy() {
+        try { unregisterReceiver(projectionReceiver) } catch (_: Exception) {}
+        bubbleManager?.destroy()
+        captureManager?.teardown()
+        triage.close()
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Lume",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Bolha flutuante do Lume"
+            setShowBadge(false)
+        }
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(channel)
     }
 }
