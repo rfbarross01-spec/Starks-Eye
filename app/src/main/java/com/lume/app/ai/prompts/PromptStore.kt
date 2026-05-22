@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 /**
  * Gerencia prompts do Lume.
  *
- * - Defaults vêm dos assets do APK (assets/prompts/*.txt).
+ * - Defaults vêm dos assets do APK (assets/prompts/_default.txt).
  * - Customizações do usuário ficam em arquivos .md dentro do vault Obsidian
  *   (pasta "lume-prompts/" criada automaticamente).
  * - Se vault não configurado: usa apenas defaults.
