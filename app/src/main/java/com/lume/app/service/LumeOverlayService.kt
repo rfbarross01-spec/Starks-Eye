@@ -96,15 +96,19 @@ class LumeOverlayService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> startInForeground()
+            else -> {
+                // Android 14+: startForeground com tipo mediaProjection só funciona
+                // se o app-op project_media já foi concedido. O fluxo agora garante
+                // que MediaProjectionRequestActivity inicia este service só após o grant.
+                if (!MediaProjectionHolder.hasGrant()) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                startInForeground()
+            }
         }
 
-        // Verifica grant ou pede
-        if (MediaProjectionHolder.hasGrant()) {
-            setupCapture()
-        } else {
-            requestMediaProjection()
-        }
+        setupCapture()
 
         bubbleManager?.show() ?: run {
             bubbleManager = BubbleManager(

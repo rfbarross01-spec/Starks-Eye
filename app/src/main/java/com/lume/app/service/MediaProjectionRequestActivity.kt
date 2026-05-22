@@ -30,11 +30,13 @@ class MediaProjectionRequestActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             MediaProjectionHolder.setResult(result.resultCode, result.data!!)
-            val intent = Intent(ACTION_GRANTED).setPackage(packageName)
-            sendBroadcast(intent)
+            // Com o consent recém-concedido, o app-op project_media está ativo.
+            // Agora podemos iniciar o foreground service com tipo mediaProjection
+            // sem cair em SecurityException (Android 14+).
+            startForegroundService(LumeOverlayService.startIntent(this))
+            sendBroadcast(Intent(ACTION_GRANTED).setPackage(packageName))
         } else {
-            val intent = Intent(ACTION_DENIED).setPackage(packageName)
-            sendBroadcast(intent)
+            sendBroadcast(Intent(ACTION_DENIED).setPackage(packageName))
         }
         finish()
     }

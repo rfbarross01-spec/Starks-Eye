@@ -123,6 +123,15 @@ class MainActivity : ComponentActivity() {
             startActivity(intent)
             return
         }
+        if (!com.lume.app.service.MediaProjectionHolder.hasGrant()) {
+            // Android 14+: precisa ter o consent ANTES de startForeground com tipo mediaProjection.
+            // A activity de consent inicia o service quando o grant for concedido.
+            startActivity(
+                Intent(this, com.lume.app.service.MediaProjectionRequestActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            return
+        }
         startForegroundService(com.lume.app.service.LumeOverlayService.startIntent(this))
     }
 }
