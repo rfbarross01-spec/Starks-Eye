@@ -86,7 +86,7 @@ class BubbleManager(
         private var touchX = 0f
         private var touchY = 0f
         private var moved = false
-        private val slopPx = 12 * context.resources.displayMetrics.density
+        private val slopPx = 48 * context.resources.displayMetrics.density
 
         override fun onTouch(v: View?, ev: MotionEvent): Boolean {
             val p = params ?: return false

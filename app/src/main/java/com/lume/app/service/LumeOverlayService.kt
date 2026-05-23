@@ -28,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import android.util.Log
 import kotlinx.coroutines.launch
 
 /**
@@ -159,26 +160,40 @@ class LumeOverlayService : Service() {
     }
 
     private fun setupCapture() {
-        val grant = MediaProjectionHolder.consume() ?: return
+        val grant = MediaProjectionHolder.consume()
+        if (grant == null) {
+            Log.w("LumeOverlay", "setupCapture: grant null — MediaProjectionHolder vazio")
+            return
+        }
+        Log.d("LumeOverlay", "setupCapture: grant obtido, configurando captureManager")
         if (captureManager == null) captureManager = ScreenCaptureManager(this)
         captureManager?.setup(grant.first, grant.second)
+        Log.d("LumeOverlay", "setupCapture: isReady=${captureManager?.isReady()}")
     }
 
     private fun onBubbleTap(forceVerdict: Boolean) {
-        if (currentCaptureJob?.isActive == true) return
+        Log.d("LumeOverlay", "onBubbleTap forceVerdict=$forceVerdict")
+        if (currentCaptureJob?.isActive == true) {
+            Log.d("LumeOverlay", "onBubbleTap: job já ativo, ignorando")
+            return
+        }
 
         currentCaptureJob = scope.launch {
             try {
-                if (captureManager?.isReady() != true) {
+                val ready = captureManager?.isReady()
+                Log.d("LumeOverlay", "onBubbleTap: captureManager.isReady=$ready")
+                if (ready != true) {
                     showToast("Preparando captura — toque de novo em 2s")
                     requestMediaProjection()
                     return@launch
                 }
 
                 bubbleManager?.hide()
-                delay(200) // dá tempo da bolha sumir do display
+                delay(200)
 
+                Log.d("LumeOverlay", "onBubbleTap: capturando screenshot...")
                 val bitmap: Bitmap? = captureManager?.captureSingle(timeoutMs = 3000)
+                Log.d("LumeOverlay", "onBubbleTap: bitmap=${bitmap != null}")
 
                 bubbleManager?.reveal()
 
@@ -187,17 +202,19 @@ class LumeOverlayService : Service() {
                     return@launch
                 }
 
-                // Triagem on-device
+                Log.d("LumeOverlay", "onBubbleTap: triagem...")
                 val triageResult = triage.triage(bitmap)
+                Log.d("LumeOverlay", "onBubbleTap: triage isSensitive=${triageResult.isSensitive}")
                 if (triageResult.isSensitive) {
                     showToast("Conteúdo sensível detectado — captura cancelada")
                     bitmap.recycle()
                     return@launch
                 }
 
-                // Converte bitmap → JPEG bytes (com resize)
+                Log.d("LumeOverlay", "onBubbleTap: convertendo para JPEG...")
                 val jpegBytes = ImageUtils.bitmapToJpegBytes(bitmap, maxDimension = 1568, quality = 85)
                 bitmap.recycle()
+                Log.d("LumeOverlay", "onBubbleTap: JPEG ${jpegBytes.size} bytes")
 
                 val ctx = CaptureContext(
                     imageBytes = jpegBytes,
@@ -208,11 +225,13 @@ class LumeOverlayService : Service() {
                 )
 
                 PendingAnalysisHolder.set(ctx)
+                Log.d("LumeOverlay", "onBubbleTap: iniciando ResultOverlayActivity")
                 val intent = Intent(this@LumeOverlayService, ResultOverlayActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 startActivity(intent)
 
             } catch (e: Exception) {
+                Log.e("LumeOverlay", "onBubbleTap: erro", e)
                 showToast("Erro: ${e.message}")
                 bubbleManager?.reveal()
             }
