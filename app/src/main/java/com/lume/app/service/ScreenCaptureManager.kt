@@ -4,7 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.ImageFormat
+import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
@@ -66,7 +66,7 @@ class ScreenCaptureManager(private val context: Context) {
         handlerThread = HandlerThread("LumeScreenCapture").apply { start() }
         handler = Handler(handlerThread!!.looper)
 
-        imageReader = ImageReader.newInstance(screenWidth, screenHeight, ImageFormat.FLEX_RGBA_8888, 3)
+        imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 3)
 
         virtualDisplay = mediaProjection?.createVirtualDisplay(
             "LumeVirtualDisplay",
