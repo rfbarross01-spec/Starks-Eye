@@ -189,10 +189,10 @@ class LumeOverlayService : Service() {
                 }
 
                 bubbleManager?.hide()
-                delay(200)
+                delay(500)
 
                 Log.d("LumeOverlay", "onBubbleTap: capturando screenshot...")
-                val bitmap: Bitmap? = captureManager?.captureSingle(timeoutMs = 3000)
+                val bitmap: Bitmap? = captureManager?.captureSingle()
                 Log.d("LumeOverlay", "onBubbleTap: bitmap=${bitmap != null}")
 
                 bubbleManager?.reveal()

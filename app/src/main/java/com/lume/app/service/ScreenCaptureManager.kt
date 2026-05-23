@@ -4,7 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.PixelFormat
+import android.graphics.ImageFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
@@ -66,7 +66,7 @@ class ScreenCaptureManager(private val context: Context) {
         handlerThread = HandlerThread("LumeScreenCapture").apply { start() }
         handler = Handler(handlerThread!!.looper)
 
-        imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+        imageReader = ImageReader.newInstance(screenWidth, screenHeight, ImageFormat.FLEX_RGBA_8888, 3)
 
         virtualDisplay = mediaProjection?.createVirtualDisplay(
             "LumeVirtualDisplay",
@@ -77,33 +77,65 @@ class ScreenCaptureManager(private val context: Context) {
         )
     }
 
-    suspend fun captureSingle(timeoutMs: Long = 3000): Bitmap? = suspendCancellableCoroutine { cont ->
+    suspend fun captureSingle(timeoutMs: Long = 10000): Bitmap? = suspendCancellableCoroutine { cont ->
         val reader = imageReader
         if (reader == null) {
+            android.util.Log.w("LumeCapture", "captureSingle: imageReader null")
             cont.resume(null)
             return@suspendCancellableCoroutine
         }
 
+        val deadline = System.currentTimeMillis() + timeoutMs
         val timeoutRunnable = Runnable {
             if (cont.isActive) {
-                try {
-                    reader.setOnImageAvailableListener(null, null)
-                } catch (_: Exception) {}
+                try { reader.setOnImageAvailableListener(null, null) } catch (_: Exception) {}
+                android.util.Log.w("LumeCapture", "captureSingle: timeout")
                 cont.resume(null)
             }
         }
         handler?.postDelayed(timeoutRunnable, timeoutMs)
 
+        // Tentativa 1: polling direto (mais confiável em Samsung/Android 14)
+        val pollRunnable = object : Runnable {
+            override fun run() {
+                if (!cont.isActive) return
+                var image: Image? = null
+                try {
+                    image = reader.acquireLatestImage()
+                    if (image != null) {
+                        handler?.removeCallbacks(timeoutRunnable)
+                        android.util.Log.d("LumeCapture", "captureSingle: imagem obtida via polling")
+                        val bitmap = imageToBitmap(image)
+                        image.close()
+                        cont.resume(bitmap)
+                        return
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("LumeCapture", "captureSingle: erro no polling", e)
+                } finally {
+                    image?.close()
+                }
+                if (System.currentTimeMillis() < deadline) {
+                    handler?.postDelayed(this, 200)
+                }
+            }
+        }
+        handler?.postDelayed(pollRunnable, 300)
+
+        // Tentativa 2: listener como fallback
         reader.setOnImageAvailableListener({ r ->
             handler?.removeCallbacks(timeoutRunnable)
+            handler?.removeCallbacks(pollRunnable)
             var image: Image? = null
             try {
                 image = r.acquireLatestImage()
                 if (image != null && cont.isActive) {
+                    android.util.Log.d("LumeCapture", "captureSingle: imagem obtida via listener")
                     val bitmap = imageToBitmap(image)
                     cont.resume(bitmap)
                 }
             } catch (e: Exception) {
+                android.util.Log.e("LumeCapture", "captureSingle: erro no listener", e)
                 if (cont.isActive) cont.resume(null)
             } finally {
                 image?.close()
